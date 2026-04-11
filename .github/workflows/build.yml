@@ -2,7 +2,7 @@ name: Build iStoreOS
 
 on:
   schedule:
-    - cron: '0 16 * * *'  # 北京时间 00:00 (UTC+8)
+  #  - cron: '0 16 * * *'  # 北京时间 00:00 (UTC+8)
   workflow_dispatch:
     inputs:
       device:
@@ -20,7 +20,7 @@ on:
           - lubancat-2n  # 添加鲁班猫 2N
 
 env:
-  REPO_URL: https://github.com/istoreos/istoreos
+  REPO_URL: https://github.com/xiaobao1980/istoreos-xiaobao
   REPO_BRANCH: istoreos-24.10
   ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}  # 使用您的 ACCESS_TOKEN
   GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}  # 同时设置 GITHUB_TOKEN
