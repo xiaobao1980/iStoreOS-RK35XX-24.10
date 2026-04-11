@@ -56,13 +56,22 @@ jobs:
         cd openwrt
         echo "src-git istoreos https://github.com/linkease/istore.git" >> feeds.conf.default
 
-    - name: 应用鲁班猫 2N 补丁
+        - name: 应用鲁班猫 2N 补丁
       if: github.event.inputs.device == 'lubancat-2n' || github.event.inputs.device == 'all'
       run: |
-        # 复制设备树文件
+        # 创建目录
         mkdir -p openwrt/target/linux/rockchip/files/arch/arm64/boot/dts/rockchip/
-        cp target/linux/rockchip/files/arch/arm64/boot/dts/rockchip/rk3568-lubancat-2n.dts \
-           openwrt/target/linux/rockchip/files/arch/arm64/boot/dts/rockchip/
+        
+        # 从野火官方仓库下载设备树
+        wget -O openwrt/target/linux/rockchip/files/arch/arm64/boot/dts/rockchip/rk3568-lubancat-2n.dts \
+          https://raw.githubusercontent.com/LubanCat/LubanCatWrt/main/target/linux/rockchip/files/arch/arm64/boot/dts/rockchip/rk3568-lubancat-2n.dts
+        
+        # 验证下载
+        ls -la openwrt/target/linux/rockchip/files/arch/arm64/boot/dts/rockchip/rk3568-lubancat-2n.dts
+        
+        # 下载 rk3568-lubancat.dtsi（如果被包含）
+        wget -O openwrt/target/linux/rockchip/files/arch/arm64/boot/dts/rockchip/rk3568-lubancat.dtsi \
+          https://raw.githubusercontent.com/LubanCat/LubanCatWrt/main/target/linux/rockchip/files/arch/arm64/boot/dts/rockchip/rk3568-lubancat.dtsi
         
         # 应用其他补丁...
 
