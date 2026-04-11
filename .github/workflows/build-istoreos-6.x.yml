@@ -1,231 +1,170 @@
-name: Build iStore OS 6.x
+name: Build iStoreOS
 
 on:
-  repository_dispatch:
+  schedule:
+    - cron: '0 16 * * *'
   workflow_dispatch:
-    # inputs:
-      # ssh:
-        # description: 'SSH connection to Actions'
-        # required: false
-        # default: 'false'
- # schedule:
- #  - cron: 0 16 * * *
+    inputs:
+      device:
+        description: '选择设备'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - h68k
+          - h88k
+          - r5s
+          - r6s
+          - r66s
+          - lubancat-2n
 
 env:
   REPO_URL: https://github.com/istoreos/istoreos
-  # REPO_BRANCH: main
-  FEEDS_CONF: feeds.conf
-  CONFIG_FILE: .config
-  DIY_P1_SH: diy-part1-6.x.sh
-  DIY_P2_SH: diy-part2-6.x.sh
-  UPLOAD_BIN_DIR: true
-  UPLOAD_FIRMWARE: true
-  UPLOAD_RELEASE: true
-  TZ: Asia/Shanghai
+  REPO_BRANCH: istoreos-24.10
+  ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
   GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
 
 jobs:
   build:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        REPO_BRANCH:
-          # - main
-          - istoreos-24.10
-          # - istoreos-23.05
-        ARCHITECTURE:
-          - armv8
-        os:
-          - ubuntu-22.04
-
-      fail-fast: false
-
+    runs-on: ubuntu-22.04
+    
     steps:
-    - name: 合并磁盘
-      uses: easimon/maximize-build-space@master
+    - name: Checkout
+      uses: actions/checkout@v4
       with:
-        swap-size-mb: 1024
-        temp-reserve-mb: 100
-        root-reserve-mb: 1024
+        token: ${{ secrets.ACCESS_TOKEN }}
 
-    - name: 准备完成
-      uses: actions/checkout@main
-
-    - name: 创建工作目录
-      run: |
-        mkdir -p ${GITHUB_WORKSPACE}/workdir
-        chmod 755 ${GITHUB_WORKSPACE}/workdir
-        echo "WORKDIR_PATH=$PWD" >> $GITHUB_ENV
-
-    - name: 检查服务器配置
-      run: |
-        echo "若分配的服务器性能不足，务必及时取消，重新运行！"
-        echo -e "------------------------------- CPU信息 -------------------------------\n"
-        echo "CPU物理数量:$(cat /proc/cpuinfo| grep "physical id"| sort| uniq| wc -l)"
-        echo -e "CPU核心及版本信息: $(cat /proc/cpuinfo | grep name | cut -f2 -d: | uniq -c) \n"
-        echo -e "------------------------------- 内存信息 -------------------------------\n"
-        echo "已安装内存详细信息: "
-        sudo lshw -short -C memory | grep GiB
-        echo -e "\n"
-        echo -e "------------------------------- 磁盘信息 -------------------------------\n"
-        echo -e "磁盘数量: $(ls /dev/sd* | grep -v [1-9] | wc -l) \n"
-        echo "------------------------------- 磁盘详情 -------------------------------\n"
-        df -Th
-
-    - name: 初始化编译环境
+    - name: 初始化环境
       env:
         DEBIAN_FRONTEND: noninteractive
       run: |
-        echo "------------------------------- 更新并安装依赖 -------------------------------"
-        sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /etc/mysql /etc/php /usr/local/lib/android /opt/ghc
+        sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /usr/local/lib/android /opt/ghc
         sudo -E apt-get -qq update
-        sudo -E apt-get -qq install $(cat $GITHUB_WORKSPACE/depends/${{ matrix.os }})
-        wget https://bootstrap.pypa.io/pip/3.6/get-pip.py
-        sudo python3 get-pip.py
-        sudo rm -rf get-pip.py
-        sudo pip install pyelftools
-        echo "------------------------------- 清理Docker镜像和软件 -------------------------------"
-        [ -n "$(docker images -q)" ] && docker rmi $(docker images -q)
-        docker image prune -a -f
-        sudo -E apt-get -y purge azure-cli ghc* zulu* hhvm llvm* firefox google* dotnet* powershell openjdk* adoptopenjdk* mysql* php* mongodb* dotnet* moby* snapd* android* || true
+        sudo -E apt-get -qq install -y build-essential asciidoc binutils bzip2 gawk gettext git libncurses5-dev \
+          libz-dev patch python3 python2.7 unzip zlib1g-dev lib32gcc-s1 libc6-dev-i386 subversion flex \
+          uglifyjs git-core gcc-multilib p7zip p7zip-full msmtp libssl-dev texinfo libglib2.0-dev \
+          xmlto qemu-utils upx libelf-dev autoconf automake libtool autopoint device-tree-compiler \
+          antlr3 gperf wget curl swig rsync
         sudo -E apt-get -qq autoremove --purge
         sudo -E apt-get -qq clean
-        echo "------------------------------- 设置时区 -------------------------------"
-        sudo timedatectl set-timezone "$TZ"
+        sudo timedatectl set-timezone "Asia/Shanghai"
 
     - name: 克隆源码
-      working-directory: ${{ env.WORKDIR_PATH }}/workdir
       run: |
-        df -hT $PWD
-        git clone $REPO_URL -b ${{ matrix.REPO_BRANCH }} openwrt
-        ln -sf ${{ env.WORKDIR_PATH }}/workdir/openwrt $GITHUB_WORKSPACE/openwrt
-
-    - name: 缓存构建动作
-      uses: klever1988/cachewrtbuild@main
-      with:
-        ccache: 'true'
-        mixkey: ${{ matrix.os }}-${{ matrix.ARCHITECTURE }}-${{ matrix.REPO_BRANCH }}
-        prefix: ${{ github.workspace }}/openwrt
-
-    - name: 加载自定义 feeds
-      env:
-        FEEDS_CONF_PATH: ${{ matrix.ARCHITECTURE }}/${{ env.FEEDS_CONF }}
-      run: |
-        [ -e $FEEDS_CONF_PATH ] && mv $FEEDS_CONF_PATH openwrt/$FEEDS_CONF
-        chmod +x $DIY_P1_SH
+        git clone --depth 1 $REPO_URL -b $REPO_BRANCH openwrt
         cd openwrt
-        $GITHUB_WORKSPACE/$DIY_P1_SH
+        echo "src-git istoreos https://github.com/linkease/istore.git" >> feeds.conf.default
 
-    - name: 更新 feeds
-      run: cd openwrt && ./scripts/feeds update -a
-
-    - name: 安装 feeds
-      run: cd openwrt && ./scripts/feeds install -a
-
-    - name: 加载自定义配置
-      env:
-        CONFIG_FILE_PATH: ${{ matrix.ARCHITECTURE }}/${{ env.CONFIG_FILE }}
+    - name: 应用鲁班猫 2N 补丁
+      if: github.event.inputs.device == 'lubancat-2n' || github.event.inputs.device == 'all'
       run: |
-        [ -e files ] && mv files openwrt/files
-        [ -e $CONFIG_FILE_PATH ] && mv $CONFIG_FILE_PATH openwrt/$CONFIG_FILE
-        chmod +x $DIY_P2_SH
-        cd openwrt
-        $GITHUB_WORKSPACE/$DIY_P2_SH
+        echo "========== 开始应用鲁班猫 2N 补丁 =========="
+        
+        DTS_DIR="openwrt/target/linux/rockchip/files/arch/arm64/boot/dts/rockchip"
+        mkdir -p $DTS_DIR
+        
+        BASE_URL="https://raw.githubusercontent.com/LubanCat/LubanCatWrt/main/target/linux/rockchip/files/arch/arm64/boot/dts/rockchip"
+        
+        echo "下载 rk3568-lubancat-2n.dts..."
+        wget -q --show-progress -O $DTS_DIR/rk3568-lubancat-2n.dts $BASE_URL/rk3568-lubancat-2n.dts
+        
+        echo "下载 rk3568-lubancat.dtsi..."
+        wget -q --show-progress -O $DTS_DIR/rk3568-lubancat.dtsi $BASE_URL/rk3568-lubancat.dtsi
+        
+        echo "验证设备树文件："
+        ls -la $DTS_DIR/rk3568-lubancat*.dts*
+        
+        echo "添加镜像定义到 rk3568.mk..."
+        echo '' >> openwrt/target/linux/rockchip/image/rk3568.mk
+        echo 'define Device/embedfire_lubancat-2n' >> openwrt/target/linux/rockchip/image/rk3568.mk
+        echo '  DEVICE_VENDOR := EmbedFire' >> openwrt/target/linux/rockchip/image/rk3568.mk
+        echo '  DEVICE_MODEL := LubanCat 2N' >> openwrt/target/linux/rockchip/image/rk3568.mk
+        echo '  SOC := rk3568' >> openwrt/target/linux/rockchip/image/rk3568.mk
+        echo '  UBOOT_DEVICE_NAME := lubancat-2n-rk3568' >> openwrt/target/linux/rockchip/image/rk3568.mk
+        echo '  IMAGE/sysupgrade.img.gz := boot-common | boot-script | pine64-img | gzip | append-metadata' >> openwrt/target/linux/rockchip/image/rk3568.mk
+        echo '  DEVICE_PACKAGES := kmod-r8125 kmod-r8169 kmod-hwmon-pwmfan kmod-thermal' >> openwrt/target/linux/rockchip/image/rk3568.mk
+        echo 'endef' >> openwrt/target/linux/rockchip/image/rk3568.mk
+        echo 'TARGET_DEVICES += embedfire_lubancat-2n' >> openwrt/target/linux/rockchip/image/rk3568.mk
+        
+        echo "========== 鲁班猫 2N 补丁应用完成 =========="
 
-    # - name: SSH 连接到 Actions
-      # uses: P3TERX/ssh2actions@main
-      # if: (github.event.inputs.ssh == 'true' && github.event.inputs.ssh  != 'false') || contains(github.event.action, 'ssh')
-      # env:
-        # TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        # TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-
-    - name: 下载软件包
-      id: package
+    - name: 更新和安装 feeds
       run: |
         cd openwrt
+        ./scripts/feeds update -a
+        ./scripts/feeds install -a
+
+    - name: 加载配置文件
+      run: |
+        cd openwrt
+        
+        if [ "${{ github.event.inputs.device }}" = "lubancat-2n" ]; then
+          echo "加载鲁班猫 2N 配置..."
+          echo 'CONFIG_TARGET_rockchip=y' > .config
+          echo 'CONFIG_TARGET_rockchip_armv8=y' >> .config
+          echo 'CONFIG_TARGET_rockchip_armv8_DEVICE_embedfire_lubancat-2n=y' >> .config
+          echo 'CONFIG_TARGET_KERNEL_PARTSIZE=64' >> .config
+          echo 'CONFIG_TARGET_ROOTFS_PARTSIZE=1024' >> .config
+          echo 'CONFIG_TARGET_ROOTFS_EXT4FS=y' >> .config
+          echo 'CONFIG_TARGET_ROOTFS_SQUASHFS=y' >> .config
+          echo 'CONFIG_PACKAGE_kmod-r8125=y' >> .config
+          echo 'CONFIG_PACKAGE_kmod-r8169=y' >> .config
+          echo 'CONFIG_PACKAGE_kmod-hwmon-pwmfan=y' >> .config
+          echo 'CONFIG_PACKAGE_kmod-thermal=y' >> .config
+          echo 'CONFIG_PACKAGE_istoreos=y' >> .config
+          echo 'CONFIG_PACKAGE_quickstart=y' >> .config
+          echo 'CONFIG_PACKAGE_luci-app-istorex=y' >> .config
+        else
+          if [ -f ../configfiles/config_data-6.x.txt ]; then
+            cat ../configfiles/config_data-6.x.txt >> .config
+          fi
+        fi
+        
         make defconfig
+
+    - name: 下载依赖包
+      run: |
+        cd openwrt
         make download -j8
         find dl -size -1024c -exec ls -l {} \;
         find dl -size -1024c -exec rm -f {} \;
 
     - name: 编译固件
-      id: compile
       run: |
         cd openwrt
-        echo -e "$(nproc) thread compile"
         make -j$(nproc) || make -j1 || make -j1 V=s
-        echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
-        echo "status=success" >> ${GITHUB_OUTPUT}
+        echo "status=success" >> $GITHUB_OUTPUT
 
-    - name: 检查磁盘空间
-      if: (!cancelled())
-      run: df -hT
-
-    - name: 上传 bin 文件夹
-      uses: actions/upload-artifact@main
-      if: steps.compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
-      with:
-        name: OpenWrt_bin${{ env.FILE_DATE }}
-        path: openwrt/bin
-
-    - name: 整理固件文件
+    - name: 整理文件
       id: organize
-      if: env.UPLOAD_FIRMWARE == 'true' && !cancelled()
       run: |
         cd openwrt/bin/targets/*/*
         rm -rf packages
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
-        echo "status=success" >> ${GITHUB_OUTPUT}
+        echo "status=success" >> $GITHUB_OUTPUT
+        ls -lh *.img.gz 2>/dev/null || ls -lh
 
-    - name: 上传固件目录
-      uses: actions/upload-artifact@main
-      if: steps.organize.outputs.status == 'success' && !cancelled()
+    - name: 上传固件到 Release
+      uses: softprops/action-gh-release@v1
+      if: steps.organize.outputs.status == 'success'
+      env:
+        GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
       with:
-        name: OpenWrt_firmware${{ env.FILE_DATE }}
-        path: ${{ env.FIRMWARE }}
-
-    - name: 生成发布标签
-      id: tag
-      if: steps.compile.outputs.status == 'success' && env.UPLOAD_RELEASE == 'true' && !cancelled()
-      run: |
-        echo "release_tag=$(date +"%Y.%m.%d-%H.%M")-${{ matrix.ARCHITECTURE }}" >> ${GITHUB_OUTPUT}
-        touch release.txt
-        echo "
-        💻 架构: ${{ matrix.ARCHITECTURE }}
-
-        📂 源码: ${{ env.REPO_URL }}
-
-        🌳 分支: ${{ matrix.REPO_BRANCH }}
-
-        ⏱️ 编译时间: $(date +"%Y年%m月%d日%H时%M分")
-
-        🌐 管理地址: 192.168.100.1
-
-        👤 用户名: root
-
-        🔒 密码: password
-
-        📒 说明: 单网口设备默认网口为LAN，旁路由模式，需要接入主路由器后进后台查找对应IP地址访问，反之双网口设备默认网口为WAN+LAN，主路由模式。 " >> release.txt
-        echo "status=success" >> ${GITHUB_OUTPUT}
-
-    - name: 自动发布固件到 Releases
-      uses: softprops/action-gh-release@v2
-      if: steps.tag.outputs.status == 'success' && !cancelled()
-      with:
-        tag_name: ${{ steps.tag.outputs.release_tag }}
-        body_path: release.txt
+        tag_name: ${{ github.run_id }}-${{ github.event.inputs.device || 'all' }}
+        name: iStoreOS ${{ github.event.inputs.device || 'all' }} ${{ github.run_id }}
         files: ${{ env.FIRMWARE }}/*
+        body: |
+          iStoreOS 编译固件
+          设备: ${{ github.event.inputs.device || 'all' }}
+          分支: istoreos-24.10
+          编译时间: ${{ github.event.head_commit.timestamp }}
 
-    - name: 删除运行记录
-      uses: xiaomeng9597/delete-workflow-runs@main
+    - name: 删除旧 Release
+      uses: dev-drprasad/delete-older-releases@v0.3.2
+      if: success()
       with:
-        retain_days: 20
-        keep_minimum_runs: 15
-        token: ${{ env.GITHUB_TOKEN }}
-
-    - name: 删除自动发布的旧固件
-      uses: dev-drprasad/delete-older-releases@v0.3.3
-      if: env.UPLOAD_RELEASE == 'true' && !cancelled()
-      with:
-        keep_latest: 60
+        keep_latest: 5
         delete_tags: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
