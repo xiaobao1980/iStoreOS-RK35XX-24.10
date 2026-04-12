@@ -12,37 +12,22 @@ on:
         type: choice
         options:
           - all
-          - h68k
-          - h88k
-          - r5s
-          - r6s
-          - r66s
           - lubancat-2n
 
 env:
   REPO_URL: https://github.com/istoreos/istoreos
   REPO_BRANCH: istoreos-24.10
   ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
-  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   build:
     runs-on: ubuntu-22.04
-    permissions:
-      contents: write
     
     steps:
     - name: Checkout
       uses: actions/checkout@v4
       with:
         token: ${{ secrets.ACCESS_TOKEN }}
-
-    - name: 调试 Token
-      run: |
-        echo "检查 Token 权限..."
-        curl -H "Authorization: token ${{ secrets.ACCESS_TOKEN }}" \
-             -H "Accept: application/vnd.github.v3+json" \
-             https://api.github.com/user | head -20
 
     - name: 初始化环境
       env:
@@ -162,16 +147,28 @@ jobs:
         echo "status=success" >> $GITHUB_OUTPUT
         ls -lh *.img.gz 2>/dev/null || ls -lh
 
-    - name: 创建 Release（使用 GitHub CLI）
+    - name: 上传固件到 Artifacts（备用）
       if: steps.organize.outputs.status == 'success'
+      uses: actions/upload-artifact@v4
+      with:
+        name: istoreos-${{ github.event.inputs.device || 'all' }}-${{ github.run_id }}
+        path: ${{ env.FIRMWARE }}/*.img.gz
+        retention-days: 7
+
+    - name: 创建 Release
+      if: steps.organize.outputs.status == 'success' && env.ACCESS_TOKEN != ''
       run: |
         cd openwrt/bin/targets/*/*
         
         TAG_NAME="${{ github.run_id }}-${{ github.event.inputs.device || 'all' }}"
         RELEASE_NAME="iStoreOS ${{ github.event.inputs.device || 'all' }} ${{ github.run_id }}"
         
-        # 创建 Release
+        # 设置 gh 命令使用 ACCESS_TOKEN
+        echo "${{ secrets.ACCESS_TOKEN }}" | gh auth login --with-token
+        
+        # 创建 Release 并上传固件
         gh release create "$TAG_NAME" \
+          --repo "${{ github.repository }}" \
           --title "$RELEASE_NAME" \
           --notes "iStoreOS 编译固件
         设备: ${{ github.event.inputs.device || 'all' }}
@@ -179,27 +176,15 @@ jobs:
         编译时间: $(date -Iseconds)" \
           *.img.gz
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: 上传固件到 Release（备用方案）
-      if: failure()
-      uses: softprops/action-gh-release@v1
-      with:
-        tag_name: ${{ github.run_id }}-${{ github.event.inputs.device || 'all' }}-backup
-        name: iStoreOS ${{ github.event.inputs.device || 'all' }} ${{ github.run_id }} (Backup)
-        files: ${{ env.FIRMWARE }}/*
-        body: |
-          iStoreOS 编译固件 (备用上传)
-          设备: ${{ github.event.inputs.device || 'all' }}
-          分支: istoreos-24.10
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.ACCESS_TOKEN }}
 
     - name: 删除旧 Release
-      uses: dev-drprasad/delete-older-releases@v0.3.2
-      if: success()
-      with:
-        keep_latest: 10
-        delete_tags: true
+      if: success() && env.ACCESS_TOKEN != ''
+      run: |
+        echo "${{ secrets.ACCESS_TOKEN }}" | gh auth login --with-token
+        gh release list --repo "${{ github.repository }}" --limit 20 | \
+        tail -n +6 | \
+        awk '{print $1}' | \
+        xargs -I {} gh release delete {} --repo "${{ github.repository }}" --yes || true
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        GH_TOKEN: ${{ secrets.ACCESS_TOKEN }}
