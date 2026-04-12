@@ -1,8 +1,8 @@
 name: Build iStoreOS
 
 on:
-  schedule:
-    - cron: '0 16 * * *'
+#  schedule:
+#    - cron: '0 16 * * *'
   workflow_dispatch:
     inputs:
       device:
@@ -12,10 +12,6 @@ on:
         type: choice
         options:
           - all
-          - h68k
-          - h88k
-          - r5s
-          - r6s
           - r66s
           - lubancat-2n
 
@@ -80,7 +76,6 @@ jobs:
         ls -la $DTS_DIR/rk3568-lubancat*.dts*
         
         echo "添加镜像定义到 rk3568.mk..."
-        # 使用 printf 避免 here-document 问题
         printf '\ndefine Device/embedfire_lubancat-2n\n' >> openwrt/target/linux/rockchip/image/rk3568.mk
         printf '  DEVICE_VENDOR := EmbedFire\n' >> openwrt/target/linux/rockchip/image/rk3568.mk
         printf '  DEVICE_MODEL := LubanCat 2N\n' >> openwrt/target/linux/rockchip/image/rk3568.mk
@@ -108,7 +103,6 @@ jobs:
           
           rm -f .config .config.old
         
-          # 使用 echo 逐行写入，避免 here-document
           echo "CONFIG_TARGET_rockchip=y" > .config
           echo "CONFIG_TARGET_rockchip_armv8=y" >> .config
           echo "CONFIG_TARGET_rockchip_armv8_DEVICE_embedfire_lubancat-2n=y" >> .config
@@ -179,18 +173,17 @@ jobs:
 
     - name: 创建 Release
       if: steps.organize.outputs.status == 'success' && env.ACCESS_TOKEN != ''
+      env:
+        GH_TOKEN: ${{ secrets.ACCESS_TOKEN }}
       run: |
         cd openwrt/bin/targets/rockchip/armv8
         
         TAG_NAME="${{ github.run_id }}-${{ github.event.inputs.device || 'all' }}"
         RELEASE_NAME="iStoreOS ${{ github.event.inputs.device || 'all' }} ${{ github.run_id }}"
         
-        # 使用 ACCESS_TOKEN 认证
-        echo "${{ secrets.ACCESS_TOKEN }}" | gh auth login --with-token
-        
-        # 显式指定仓库为您的 Fork
         echo "创建 Release 到仓库: ${{ env.MY_REPO }}"
         
+        # 直接使用 GH_TOKEN 环境变量，不需要 gh auth login
         gh release create "$TAG_NAME" \
           --repo "${{ env.MY_REPO }}" \
           --title "$RELEASE_NAME" \
@@ -199,5 +192,3 @@ jobs:
         分支: istoreos-24.10
         编译时间: $(date -Iseconds)" \
           *.img.gz
-      env:
-        GH_TOKEN: ${{ secrets.ACCESS_TOKEN }}
