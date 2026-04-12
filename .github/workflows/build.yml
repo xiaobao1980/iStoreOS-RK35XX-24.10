@@ -80,18 +80,16 @@ jobs:
         ls -la $DTS_DIR/rk3568-lubancat*.dts*
         
         echo "添加镜像定义到 rk3568.mk..."
-        cat >> openwrt/target/linux/rockchip/image/rk3568.mk << 'EOF'
-
-define Device/embedfire_lubancat-2n
-  DEVICE_VENDOR := EmbedFire
-  DEVICE_MODEL := LubanCat 2N
-  SOC := rk3568
-  UBOOT_DEVICE_NAME := lubancat-2n-rk3568
-  IMAGE/sysupgrade.img.gz := boot-common | boot-script | pine64-img | gzip | append-metadata
-  DEVICE_PACKAGES := kmod-r8125 kmod-r8169 kmod-hwmon-pwmfan kmod-thermal
-endef
-TARGET_DEVICES += embedfire_lubancat-2n
-EOF
+        # 使用 printf 避免 here-document 问题
+        printf '\ndefine Device/embedfire_lubancat-2n\n' >> openwrt/target/linux/rockchip/image/rk3568.mk
+        printf '  DEVICE_VENDOR := EmbedFire\n' >> openwrt/target/linux/rockchip/image/rk3568.mk
+        printf '  DEVICE_MODEL := LubanCat 2N\n' >> openwrt/target/linux/rockchip/image/rk3568.mk
+        printf '  SOC := rk3568\n' >> openwrt/target/linux/rockchip/image/rk3568.mk
+        printf '  UBOOT_DEVICE_NAME := lubancat-2n-rk3568\n' >> openwrt/target/linux/rockchip/image/rk3568.mk
+        printf '  IMAGE/sysupgrade.img.gz := boot-common | boot-script | pine64-img | gzip | append-metadata\n' >> openwrt/target/linux/rockchip/image/rk3568.mk
+        printf '  DEVICE_PACKAGES := kmod-r8125 kmod-r8169 kmod-hwmon-pwmfan kmod-thermal\n' >> openwrt/target/linux/rockchip/image/rk3568.mk
+        printf 'endef\n' >> openwrt/target/linux/rockchip/image/rk3568.mk
+        printf 'TARGET_DEVICES += embedfire_lubancat-2n\n' >> openwrt/target/linux/rockchip/image/rk3568.mk
         
         echo "========== 鲁班猫 2N 补丁应用完成 =========="
 
@@ -110,22 +108,21 @@ EOF
           
           rm -f .config .config.old
         
-          cat > .config << 'EOF'
-CONFIG_TARGET_rockchip=y
-CONFIG_TARGET_rockchip_armv8=y
-CONFIG_TARGET_rockchip_armv8_DEVICE_embedfire_lubancat-2n=y
-CONFIG_TARGET_KERNEL_PARTSIZE=64
-CONFIG_TARGET_ROOTFS_PARTSIZE=1024
-CONFIG_TARGET_ROOTFS_EXT4FS=y
-CONFIG_TARGET_ROOTFS_SQUASHFS=y
-CONFIG_PACKAGE_kmod-r8125=y
-CONFIG_PACKAGE_kmod-r8169=y
-CONFIG_PACKAGE_kmod-hwmon-pwmfan=y
-CONFIG_PACKAGE_kmod-thermal=y
-CONFIG_PACKAGE_istoreos=y
-CONFIG_PACKAGE_quickstart=y
-CONFIG_PACKAGE_luci-app-istorex=y
-EOF
+          # 使用 echo 逐行写入，避免 here-document
+          echo "CONFIG_TARGET_rockchip=y" > .config
+          echo "CONFIG_TARGET_rockchip_armv8=y" >> .config
+          echo "CONFIG_TARGET_rockchip_armv8_DEVICE_embedfire_lubancat-2n=y" >> .config
+          echo "CONFIG_TARGET_KERNEL_PARTSIZE=64" >> .config
+          echo "CONFIG_TARGET_ROOTFS_PARTSIZE=1024" >> .config
+          echo "CONFIG_TARGET_ROOTFS_EXT4FS=y" >> .config
+          echo "CONFIG_TARGET_ROOTFS_SQUASHFS=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-r8125=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-r8169=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-hwmon-pwmfan=y" >> .config
+          echo "CONFIG_PACKAGE_kmod-thermal=y" >> .config
+          echo "CONFIG_PACKAGE_istoreos=y" >> .config
+          echo "CONFIG_PACKAGE_quickstart=y" >> .config
+          echo "CONFIG_PACKAGE_luci-app-istorex=y" >> .config
           
           echo "========== 验证 .config 内容 =========="
           cat .config
