@@ -15,7 +15,7 @@ on:
           - lubancat-2n
 
 env:
-  REPO_URL: https://github.com/istoreos/istoreos
+  REPO_URL: https://github.com/xiaobao1980/istoreos-xiaobao
   REPO_BRANCH: istoreos-24.10
   ACCESS_TOKEN: ${{ secrets.ACCESS_TOKEN }}
 
