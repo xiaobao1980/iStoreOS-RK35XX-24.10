@@ -12,6 +12,11 @@ on:
         type: choice
         options:
           - all
+          - h68k
+          - h88k
+          - r5s
+          - r6s
+          - r66s
           - lubancat-2n
 
 env:
