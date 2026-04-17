@@ -1,4 +1,4 @@
-name: Build iStore OS 6.x
+name: Build iStore OS 6.x-selective
 
 on:
   repository_dispatch:
