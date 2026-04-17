@@ -1,4 +1,4 @@
-name: Build iStore OS 6.x-selective
+name: Build iStore OS 6.x
 
 on:
   repository_dispatch:
@@ -52,90 +52,58 @@ env:
   GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
 
 jobs:
+  # 第一步：生成动态矩阵
+  generate-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - name: 生成编译矩阵
+        id: set-matrix
+        run: |
+          # 定义所有可用的设备
+          ALL_DEVICES='[
+            {"DEVICE":"cyber3588-aib","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"cyber3588-aib.config"},
+            {"DEVICE":"easepi_a2","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"easepi_a2.config"},
+            {"DEVICE":"lubancat-2n","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"lubancat-2n.config"},
+            {"DEVICE":"r5s","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"r5s.config"},
+            {"DEVICE":"r5c","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"r5c.config"},
+            {"DEVICE":"r4s","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"r4s.config"},
+            {"DEVICE":"r2s","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"r2s.config"},
+            {"DEVICE":"r2c","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"r2c.config"},
+            {"DEVICE":"x86_64","ARCHITECTURE":"x86_64","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"x86_64.config"},
+            {"DEVICE":"fastrhino_r66s","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"fastrhino_r66s.config"},
+            {"DEVICE":"fastrhino_r68s","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"fastrhino_r68s.config"},
+            {"DEVICE":"photonicat","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"photonicat.config"},
+            {"DEVICE":"sige7","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"sige7.config"},
+            {"DEVICE":"station_p2","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"station_p2.config"}
+          ]'
+          
+          BUILD_TARGET="${{ github.event.inputs.build_target }}"
+          
+          if [ "$BUILD_TARGET" == "all" ] || [ -z "$BUILD_TARGET" ]; then
+            # 编译全部设备
+            echo "matrix=$ALL_DEVICES" >> $GITHUB_OUTPUT
+            echo "📋 将编译所有设备"
+          else
+            # 只编译指定设备
+            SELECTED_DEVICE=$(echo "$ALL_DEVICES" | jq --arg target "$BUILD_TARGET" '[.[] | select(.DEVICE == $target)]')
+            if [ "$SELECTED_DEVICE" == "[]" ]; then
+              echo "❌ 错误: 未找到设备 '$BUILD_TARGET'"
+              exit 1
+            fi
+            echo "matrix=$SELECTED_DEVICE" >> $GITHUB_OUTPUT
+            echo "📋 将编译设备: $BUILD_TARGET"
+          fi
+
+  # 第二步：执行编译
   build:
-    runs-on: ${{ matrix.os }}
+    needs: generate-matrix
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
-        include:
-          # 定义每个设备板块的配置
-          - DEVICE: cyber3588-aib
-            ARCHITECTURE: armv8
-            REPO_BRANCH: istoreos-24.10
-            CONFIG_FILE: cyber3588-aib.config
-            
-          - DEVICE: easepi_a2
-            ARCHITECTURE: armv8
-            REPO_BRANCH: istoreos-24.10
-            CONFIG_FILE: easepi_a2.config
-            
-          - DEVICE: lubancat-2n
-            ARCHITECTURE: armv8
-            REPO_BRANCH: istoreos-24.10
-            CONFIG_FILE: lubancat-2n.config
-            
-          - DEVICE: r5s
-            ARCHITECTURE: armv8
-            REPO_BRANCH: istoreos-24.10
-            CONFIG_FILE: r5s.config
-            
-          - DEVICE: r5c
-            ARCHITECTURE: armv8
-            REPO_BRANCH: istoreos-24.10
-            CONFIG_FILE: r5c.config
-            
-          - DEVICE: r4s
-            ARCHITECTURE: armv8
-            REPO_BRANCH: istoreos-24.10
-            CONFIG_FILE: r4s.config
-            
-          - DEVICE: r2s
-            ARCHITECTURE: armv8
-            REPO_BRANCH: istoreos-24.10
-            CONFIG_FILE: r2s.config
-            
-          - DEVICE: r2c
-            ARCHITECTURE: armv8
-            REPO_BRANCH: istoreos-24.10
-            CONFIG_FILE: r2c.config
-            
-          - DEVICE: x86_64
-            ARCHITECTURE: x86_64
-            REPO_BRANCH: istoreos-24.10
-            CONFIG_FILE: x86_64.config
-            
-          - DEVICE: fastrhino_r66s
-            ARCHITECTURE: armv8
-            REPO_BRANCH: istoreos-24.10
-            CONFIG_FILE: fastrhino_r66s.config
-            
-          - DEVICE: fastrhino_r68s
-            ARCHITECTURE: armv8
-            REPO_BRANCH: istoreos-24.10
-            CONFIG_FILE: fastrhino_r68s.config
-            
-          - DEVICE: photonicat
-            ARCHITECTURE: armv8
-            REPO_BRANCH: istoreos-24.10
-            CONFIG_FILE: photonicat.config
-            
-          - DEVICE: sige7
-            ARCHITECTURE: armv8
-            REPO_BRANCH: istoreos-24.10
-            CONFIG_FILE: sige7.config
-            
-          - DEVICE: station_p2
-            ARCHITECTURE: armv8
-            REPO_BRANCH: istoreos-24.10
-            CONFIG_FILE: station_p2.config
-            
-          # 在这里继续添加更多设备...
-          
-        os:
-          - ubuntu-22.04
-
-    # 条件判断：编译全部 或 匹配选择的设备
-    if: github.event.inputs.build_target == 'all' || github.event.inputs.build_target == matrix.DEVICE
+        include: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
 
     steps:
     - name: 显示编译信息
@@ -187,7 +155,7 @@ jobs:
         echo "------------------------------- 更新并安装依赖 -------------------------------"
         sudo rm -rf /etc/apt/sources.list.d/* /usr/share/dotnet /etc/mysql /etc/php /usr/local/lib/android /opt/ghc
         sudo -E apt-get -qq update
-        sudo -E apt-get -qq install $(cat $GITHUB_WORKSPACE/depends/${{ matrix.os }})
+        sudo -E apt-get -qq install $(cat $GITHUB_WORKSPACE/depends/ubuntu-22.04)
         wget https://bootstrap.pypa.io/pip/3.6/get-pip.py
         sudo python3 get-pip.py
         sudo rm -rf get-pip.py
@@ -213,7 +181,7 @@ jobs:
       uses: klever1988/cachewrtbuild@main
       with:
         ccache: 'true'
-        mixkey: ${{ matrix.os }}-${{ matrix.DEVICE }}-${{ matrix.REPO_BRANCH }}
+        mixkey: ubuntu-22.04-${{ matrix.DEVICE }}-${{ matrix.REPO_BRANCH }}
         prefix: ${{ github.workspace }}/openwrt
 
     - name: 清理缓存（如选择重新编译）
@@ -225,9 +193,9 @@ jobs:
 
     - name: 加载自定义 feeds
       env:
-        FEEDS_CONF_PATH: ${{ matrix.ARCHITECTURE }}/${{ env.FEEDS_CONF }}
+        FEEDS_CONF_PATH: ${{ matrix.ARCHITECTURE }}/feeds.conf
       run: |
-        [ -e $FEEDS_CONF_PATH ] && mv $FEEDS_CONF_PATH openwrt/$FEEDS_CONF
+        [ -e $FEEDS_CONF_PATH ] && mv $FEEDS_CONF_PATH openwrt/feeds.conf
         chmod +x $DIY_P1_SH
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P1_SH
@@ -241,8 +209,8 @@ jobs:
     - name: 加载自定义配置
       env:
         # 优先使用设备专属配置文件路径
-        DEVICE_CONFIG_PATH: configs/${{ matrix.DEVICE }}/${{ env.CONFIG_FILE }}
-        ARCH_CONFIG_PATH: ${{ matrix.ARCHITECTURE }}/${{ env.CONFIG_FILE }}
+        DEVICE_CONFIG_PATH: configs/${{ matrix.DEVICE }}/.config
+        ARCH_CONFIG_PATH: ${{ matrix.ARCHITECTURE }}/.config
       run: |
         [ -e files ] && mv files openwrt/files
         
