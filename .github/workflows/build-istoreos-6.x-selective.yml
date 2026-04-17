@@ -1,27 +1,31 @@
-name: Build iStore OS 6.x
+name: Build iStore OS 6.x-selective
 
 on:
   repository_dispatch:
   workflow_dispatch:
     inputs:
       build_target:
-        description: '选择要编译的板块 (all=全部编译)'
+        description: '选择要编译的设备板块'
         required: true
         default: 'all'
         type: choice
         options:
           - all
-          - armv8
-          # 在这里添加更多板块选项，例如：
-          # - x86_64
-          # - arm_cortex-a7
-          # - arm_cortex-a9
-          # - arm_cortex-a15
-          # - mipsel_24kc
-          # - ramips
-          # - rockchip
-          # - bcm27xx
-          # - bcm53xx
+          - cyber3588-aib
+          - easepi_a2
+          - lubancat-2n
+          - r5s
+          - r5c
+          - r4s
+          - r2s
+          - r2c
+          - x86_64
+          - fastrhino_r66s
+          - fastrhino_r68s
+          - photonicat
+          - sige7
+          - station_p2
+          # 添加更多设备板块...
       clean_build:
         description: '是否清理缓存重新编译'
         required: false
@@ -51,30 +55,96 @@ jobs:
   build:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        REPO_BRANCH:
-          # - main
-          - istoreos-24.10
-          # - istoreos-23.05
-        ARCHITECTURE:
-          - armv8
-          # 在这里添加更多架构到矩阵中
-          # - x86_64
-          # - arm_cortex-a7
+        include:
+          # 定义每个设备板块的配置
+          - DEVICE: cyber3588-aib
+            ARCHITECTURE: armv8
+            REPO_BRANCH: istoreos-24.10
+            CONFIG_FILE: cyber3588-aib.config
+            
+          - DEVICE: easepi_a2
+            ARCHITECTURE: armv8
+            REPO_BRANCH: istoreos-24.10
+            CONFIG_FILE: easepi_a2.config
+            
+          - DEVICE: lubancat-2n
+            ARCHITECTURE: armv8
+            REPO_BRANCH: istoreos-24.10
+            CONFIG_FILE: lubancat-2n.config
+            
+          - DEVICE: r5s
+            ARCHITECTURE: armv8
+            REPO_BRANCH: istoreos-24.10
+            CONFIG_FILE: r5s.config
+            
+          - DEVICE: r5c
+            ARCHITECTURE: armv8
+            REPO_BRANCH: istoreos-24.10
+            CONFIG_FILE: r5c.config
+            
+          - DEVICE: r4s
+            ARCHITECTURE: armv8
+            REPO_BRANCH: istoreos-24.10
+            CONFIG_FILE: r4s.config
+            
+          - DEVICE: r2s
+            ARCHITECTURE: armv8
+            REPO_BRANCH: istoreos-24.10
+            CONFIG_FILE: r2s.config
+            
+          - DEVICE: r2c
+            ARCHITECTURE: armv8
+            REPO_BRANCH: istoreos-24.10
+            CONFIG_FILE: r2c.config
+            
+          - DEVICE: x86_64
+            ARCHITECTURE: x86_64
+            REPO_BRANCH: istoreos-24.10
+            CONFIG_FILE: x86_64.config
+            
+          - DEVICE: fastrhino_r66s
+            ARCHITECTURE: armv8
+            REPO_BRANCH: istoreos-24.10
+            CONFIG_FILE: fastrhino_r66s.config
+            
+          - DEVICE: fastrhino_r68s
+            ARCHITECTURE: armv8
+            REPO_BRANCH: istoreos-24.10
+            CONFIG_FILE: fastrhino_r68s.config
+            
+          - DEVICE: photonicat
+            ARCHITECTURE: armv8
+            REPO_BRANCH: istoreos-24.10
+            CONFIG_FILE: photonicat.config
+            
+          - DEVICE: sige7
+            ARCHITECTURE: armv8
+            REPO_BRANCH: istoreos-24.10
+            CONFIG_FILE: sige7.config
+            
+          - DEVICE: station_p2
+            ARCHITECTURE: armv8
+            REPO_BRANCH: istoreos-24.10
+            CONFIG_FILE: station_p2.config
+            
+          # 在这里继续添加更多设备...
+          
         os:
           - ubuntu-22.04
 
-      fail-fast: false
-
-    # 添加条件判断：如果选择了指定板块，则只编译该板块
-    if: github.event.inputs.build_target == 'all' || github.event.inputs.build_target == matrix.ARCHITECTURE
+    # 条件判断：编译全部 或 匹配选择的设备
+    if: github.event.inputs.build_target == 'all' || github.event.inputs.build_target == matrix.DEVICE
 
     steps:
     - name: 显示编译信息
       run: |
         echo "=========================================="
-        echo "🎯 编译目标: ${{ matrix.ARCHITECTURE }}"
+        echo "📱 设备板块: ${{ matrix.DEVICE }}"
+        echo "🏗️ 架构类型: ${{ matrix.ARCHITECTURE }}"
         echo "🌳 源码分支: ${{ matrix.REPO_BRANCH }}"
+        echo "📋 配置文件: ${{ matrix.CONFIG_FILE }}"
         echo "🔧 清理缓存: ${{ github.event.inputs.clean_build }}"
         echo "📅 编译时间: $(date '+%Y-%m-%d %H:%M:%S')"
         echo "=========================================="
@@ -143,7 +213,7 @@ jobs:
       uses: klever1988/cachewrtbuild@main
       with:
         ccache: 'true'
-        mixkey: ${{ matrix.os }}-${{ matrix.ARCHITECTURE }}-${{ matrix.REPO_BRANCH }}
+        mixkey: ${{ matrix.os }}-${{ matrix.DEVICE }}-${{ matrix.REPO_BRANCH }}
         prefix: ${{ github.workspace }}/openwrt
 
     - name: 清理缓存（如选择重新编译）
@@ -170,13 +240,30 @@ jobs:
 
     - name: 加载自定义配置
       env:
-        CONFIG_FILE_PATH: ${{ matrix.ARCHITECTURE }}/${{ env.CONFIG_FILE }}
+        # 优先使用设备专属配置文件路径
+        DEVICE_CONFIG_PATH: configs/${{ matrix.DEVICE }}/${{ env.CONFIG_FILE }}
+        ARCH_CONFIG_PATH: ${{ matrix.ARCHITECTURE }}/${{ env.CONFIG_FILE }}
       run: |
         [ -e files ] && mv files openwrt/files
-        [ -e $CONFIG_FILE_PATH ] && mv $CONFIG_FILE_PATH openwrt/$CONFIG_FILE
+        
+        # 检查设备专属配置是否存在，否则使用架构通用配置
+        if [ -e "$DEVICE_CONFIG_PATH" ]; then
+          echo "📋 使用设备专属配置: $DEVICE_CONFIG_PATH"
+          mv $DEVICE_CONFIG_PATH openwrt/.config
+        elif [ -e "$ARCH_CONFIG_PATH" ]; then
+          echo "📋 使用架构通用配置: $ARCH_CONFIG_PATH"
+          mv $ARCH_CONFIG_PATH openwrt/.config
+        else
+          echo "⚠️ 警告: 未找到配置文件，使用默认配置"
+        fi
+        
         chmod +x $DIY_P2_SH
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P2_SH
+        
+        # 根据设备名称设置目标
+        echo "CONFIG_TARGET_${{ matrix.ARCHITECTURE }}=y" >> .config
+        echo "CONFIG_TARGET_${{ matrix.ARCHITECTURE }}_DEVICE_${{ matrix.DEVICE }}=y" >> .config
 
     # - name: SSH 连接到 Actions
       # uses: P3TERX/ssh2actions@main
@@ -201,6 +288,7 @@ jobs:
         echo -e "$(nproc) thread compile"
         make -j$(nproc) || make -j1 || make -j1 V=s
         echo "FILE_DATE=_$(date +"%Y%m%d%H%M")" >> $GITHUB_ENV
+        echo "DEVICE_NAME=${{ matrix.DEVICE }}" >> $GITHUB_ENV
         echo "status=success" >> ${GITHUB_OUTPUT}
 
     - name: 检查磁盘空间
@@ -211,7 +299,7 @@ jobs:
       uses: actions/upload-artifact@main
       if: steps.compile.outputs.status == 'success' && env.UPLOAD_BIN_DIR == 'true'
       with:
-        name: OpenWrt_bin${{ env.FILE_DATE }}_${{ matrix.ARCHITECTURE }}
+        name: OpenWrt_bin_${{ matrix.DEVICE }}_${{ env.FILE_DATE }}
         path: openwrt/bin
 
     - name: 整理固件文件
@@ -227,17 +315,19 @@ jobs:
       uses: actions/upload-artifact@main
       if: steps.organize.outputs.status == 'success' && !cancelled()
       with:
-        name: OpenWrt_firmware${{ env.FILE_DATE }}_${{ matrix.ARCHITECTURE }}
+        name: OpenWrt_firmware_${{ matrix.DEVICE }}_${{ env.FILE_DATE }}
         path: ${{ env.FIRMWARE }}
 
     - name: 生成发布标签
       id: tag
       if: steps.compile.outputs.status == 'success' && env.UPLOAD_RELEASE == 'true' && !cancelled()
       run: |
-        echo "release_tag=$(date +"%Y.%m.%d-%H.%M")-${{ matrix.ARCHITECTURE }}" >> ${GITHUB_OUTPUT}
+        echo "release_tag=$(date +"%Y.%m.%d-%H.%M")-${{ matrix.DEVICE }}" >> ${GITHUB_OUTPUT}
         touch release.txt
         echo "
-        💻 架构: ${{ matrix.ARCHITECTURE }}
+        📱 设备: ${{ matrix.DEVICE }}
+        
+        🏗️ 架构: ${{ matrix.ARCHITECTURE }}
 
         📂 源码: ${{ env.REPO_URL }}
 
