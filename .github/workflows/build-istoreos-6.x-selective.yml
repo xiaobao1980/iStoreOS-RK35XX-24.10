@@ -25,22 +25,14 @@ on:
           - photonicat
           - sige7
           - station_p2
-          # 添加更多设备板块...
       clean_build:
         description: '是否清理缓存重新编译'
         required: false
         default: false
         type: boolean
-      # ssh:
-        # description: 'SSH connection to Actions'
-        # required: false
-        # default: 'false'
- # schedule:
- #  - cron: 0 16 * * *
 
 env:
   REPO_URL: https://github.com/xiaobao1980/istoreos-xiaobao
-  # REPO_BRANCH: main
   FEEDS_CONF: feeds.conf
   CONFIG_FILE: .config
   DIY_P1_SH: diy-part1-6.x.sh
@@ -52,7 +44,6 @@ env:
   GITHUB_TOKEN: ${{ secrets.ACCESS_TOKEN }}
 
 jobs:
-  # 第一步：生成动态矩阵
   generate-matrix:
     runs-on: ubuntu-latest
     outputs:
@@ -61,49 +52,69 @@ jobs:
       - name: 生成编译矩阵
         id: set-matrix
         run: |
-          # 定义所有可用的设备
-          ALL_DEVICES='[
-            {"DEVICE":"cyber3588-aib","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"cyber3588-aib.config"},
-            {"DEVICE":"easepi_a2","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"easepi_a2.config"},
-            {"DEVICE":"lubancat-2n","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"lubancat-2n.config"},
-            {"DEVICE":"r5s","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"r5s.config"},
-            {"DEVICE":"r5c","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"r5c.config"},
-            {"DEVICE":"r4s","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"r4s.config"},
-            {"DEVICE":"r2s","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"r2s.config"},
-            {"DEVICE":"r2c","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"r2c.config"},
-            {"DEVICE":"x86_64","ARCHITECTURE":"x86_64","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"x86_64.config"},
-            {"DEVICE":"fastrhino_r66s","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"fastrhino_r66s.config"},
-            {"DEVICE":"fastrhino_r68s","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"fastrhino_r68s.config"},
-            {"DEVICE":"photonicat","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"photonicat.config"},
-            {"DEVICE":"sige7","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"sige7.config"},
-            {"DEVICE":"station_p2","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"station_p2.config"}
-          ]'
-          
           BUILD_TARGET="${{ github.event.inputs.build_target }}"
           
           if [ "$BUILD_TARGET" == "all" ] || [ -z "$BUILD_TARGET" ]; then
-            # 编译全部设备
-            echo "matrix=$ALL_DEVICES" >> $GITHUB_OUTPUT
+            echo 'matrix={"include":[{"DEVICE":"cyber3588-aib","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"cyber3588-aib.config"},{"DEVICE":"easepi_a2","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"easepi_a2.config"},{"DEVICE":"lubancat-2n","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"lubancat-2n.config"},{"DEVICE":"r5s","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"r5s.config"},{"DEVICE":"r5c","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"r5c.config"},{"DEVICE":"r4s","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"r4s.config"},{"DEVICE":"r2s","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"r2s.config"},{"DEVICE":"r2c","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"r2c.config"},{"DEVICE":"x86_64","ARCHITECTURE":"x86_64","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"x86_64.config"},{"DEVICE":"fastrhino_r66s","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"fastrhino_r66s.config"},{"DEVICE":"fastrhino_r68s","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"fastrhino_r68s.config"},{"DEVICE":"photonicat","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"photonicat.config"},{"DEVICE":"sige7","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"sige7.config"},{"DEVICE":"station_p2","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"station_p2.config"}]}' >> $GITHUB_OUTPUT
             echo "📋 将编译所有设备"
           else
-            # 只编译指定设备
-            SELECTED_DEVICE=$(echo "$ALL_DEVICES" | jq --arg target "$BUILD_TARGET" '[.[] | select(.DEVICE == $target)]')
-            if [ "$SELECTED_DEVICE" == "[]" ]; then
-              echo "❌ 错误: 未找到设备 '$BUILD_TARGET'"
-              exit 1
-            fi
-            echo "matrix=$SELECTED_DEVICE" >> $GITHUB_OUTPUT
+            case $BUILD_TARGET in
+              cyber3588-aib)
+                echo 'matrix={"include":[{"DEVICE":"cyber3588-aib","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"cyber3588-aib.config"}]}' >> $GITHUB_OUTPUT
+                ;;
+              easepi_a2)
+                echo 'matrix={"include":[{"DEVICE":"easepi_a2","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"easepi_a2.config"}]}' >> $GITHUB_OUTPUT
+                ;;
+              lubancat-2n)
+                echo 'matrix={"include":[{"DEVICE":"lubancat-2n","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"lubancat-2n.config"}]}' >> $GITHUB_OUTPUT
+                ;;
+              r5s)
+                echo 'matrix={"include":[{"DEVICE":"r5s","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"r5s.config"}]}' >> $GITHUB_OUTPUT
+                ;;
+              r5c)
+                echo 'matrix={"include":[{"DEVICE":"r5c","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"r5c.config"}]}' >> $GITHUB_OUTPUT
+                ;;
+              r4s)
+                echo 'matrix={"include":[{"DEVICE":"r4s","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"r4s.config"}]}' >> $GITHUB_OUTPUT
+                ;;
+              r2s)
+                echo 'matrix={"include":[{"DEVICE":"r2s","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"r2s.config"}]}' >> $GITHUB_OUTPUT
+                ;;
+              r2c)
+                echo 'matrix={"include":[{"DEVICE":"r2c","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"r2c.config"}]}' >> $GITHUB_OUTPUT
+                ;;
+              x86_64)
+                echo 'matrix={"include":[{"DEVICE":"x86_64","ARCHITECTURE":"x86_64","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"x86_64.config"}]}' >> $GITHUB_OUTPUT
+                ;;
+              fastrhino_r66s)
+                echo 'matrix={"include":[{"DEVICE":"fastrhino_r66s","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"fastrhino_r66s.config"}]}' >> $GITHUB_OUTPUT
+                ;;
+              fastrhino_r68s)
+                echo 'matrix={"include":[{"DEVICE":"fastrhino_r68s","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"fastrhino_r68s.config"}]}' >> $GITHUB_OUTPUT
+                ;;
+              photonicat)
+                echo 'matrix={"include":[{"DEVICE":"photonicat","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"photonicat.config"}]}' >> $GITHUB_OUTPUT
+                ;;
+              sige7)
+                echo 'matrix={"include":[{"DEVICE":"sige7","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"sige7.config"}]}' >> $GITHUB_OUTPUT
+                ;;
+              station_p2)
+                echo 'matrix={"include":[{"DEVICE":"station_p2","ARCHITECTURE":"armv8","REPO_BRANCH":"istoreos-24.10","CONFIG_FILE":"station_p2.config"}]}' >> $GITHUB_OUTPUT
+                ;;
+              *)
+                echo "❌ 错误: 未找到设备 '$BUILD_TARGET'"
+                exit 1
+                ;;
+            esac
             echo "📋 将编译设备: $BUILD_TARGET"
           fi
 
-  # 第二步：执行编译
   build:
     needs: generate-matrix
     runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
-      matrix:
-        include: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.generate-matrix.outputs.matrix) }}
 
     steps:
     - name: 显示编译信息
@@ -208,13 +219,11 @@ jobs:
 
     - name: 加载自定义配置
       env:
-        # 优先使用设备专属配置文件路径
         DEVICE_CONFIG_PATH: configs/${{ matrix.DEVICE }}/.config
         ARCH_CONFIG_PATH: ${{ matrix.ARCHITECTURE }}/.config
       run: |
         [ -e files ] && mv files openwrt/files
         
-        # 检查设备专属配置是否存在，否则使用架构通用配置
         if [ -e "$DEVICE_CONFIG_PATH" ]; then
           echo "📋 使用设备专属配置: $DEVICE_CONFIG_PATH"
           mv $DEVICE_CONFIG_PATH openwrt/.config
@@ -229,16 +238,8 @@ jobs:
         cd openwrt
         $GITHUB_WORKSPACE/$DIY_P2_SH
         
-        # 根据设备名称设置目标
         echo "CONFIG_TARGET_${{ matrix.ARCHITECTURE }}=y" >> .config
         echo "CONFIG_TARGET_${{ matrix.ARCHITECTURE }}_DEVICE_${{ matrix.DEVICE }}=y" >> .config
-
-    # - name: SSH 连接到 Actions
-      # uses: P3TERX/ssh2actions@main
-      # if: (github.event.inputs.ssh == 'true' && github.event.inputs.ssh  != 'false') || contains(github.event.action, 'ssh')
-      # env:
-        # TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
-        # TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
 
     - name: 下载软件包
       id: package
